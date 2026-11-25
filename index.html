@@ -1,0 +1,3083 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>高機能 枠付きQRコード作成ツール</title>
+  <!-- 一括ZIPダウンロード用ライブラリ (JSZip) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 40px;
+      overflow-x: hidden;
+    }
+
+    /* ヘッダー */
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .logo-area h1 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-header {
+      background: #eff6ff;
+      color: var(--primary);
+      border: 1px solid #bfdbfe;
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-header:hover {
+      background: #dbeafe;
+    }
+
+    .btn-history {
+      background: #f8fafc;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+    }
+
+    .btn-history:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+
+    .history-badge {
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.72rem;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    /* メインレイアウト */
+    .container {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 420px;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .main-column {
+      min-width: 0;
+    }
+
+    /* カード・パネル共通 */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #0f172a;
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* タブ切り替え */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px 8px;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* フォーム要素 */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="text"], input[type="url"], textarea, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"]:focus, input[type="url"]:focus, textarea:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .btn-paste {
+      padding: 0 14px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .btn-paste:hover {
+      background: #e2e8f0;
+    }
+
+    /* よく使うフレーズ・選択チップ */
+    .phrase-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .chip {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 5px 10px;
+      border-radius: 16px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .chip:hover {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: var(--primary);
+    }
+
+    .chip-url {
+      background: #eff6ff;
+      border-color: #93c5fd;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .chip-url:hover {
+      background: #dbeafe;
+    }
+
+    .chip-add {
+      background: #ecfdf5;
+      border-color: #a7f3d0;
+      color: #047857;
+    }
+
+    .chip-add:hover {
+      background: #d1fae5;
+    }
+
+    /* 一括作成モード切替 */
+    .batch-mode-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* 個別編集モード中のバナー */
+    .editing-target-banner {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      color: #92400e;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Googleフォーム クイック選択グリッド */
+    .gform-selector-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 8px;
+    }
+
+    .gform-sub-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      margin-top: 8px;
+    }
+    .gform-sub-label:first-child {
+      margin-top: 0;
+    }
+
+    .num-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+      gap: 5px;
+    }
+
+    .num-btn {
+      padding: 6px 4px;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+
+    .num-btn:hover {
+      background: #eff6ff;
+      border-color: #93c5fd;
+      color: var(--primary);
+    }
+
+    .num-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+    }
+
+    /* 四方向切替ナビ */
+    .dir-nav {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .dir-btn {
+      padding: 8px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .dir-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    /* カラー＆スタイルコントロール */
+    .style-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    .color-picker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .color-picker-item input[type="color"] {
+      -webkit-appearance: none;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    /* テーマプリセット */
+    .theme-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .theme-btn {
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: #ffffff;
+    }
+
+    .theme-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    /* プレビュー表示カラム */
+    .preview-column {
+      position: sticky;
+      top: 80px;
+    }
+
+    .preview-box {
+      background: #f1f5f9;
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 360px;
+    }
+
+    #qrCanvas {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    /* コントラスト警告 */
+    .contrast-badge {
+      margin-top: 10px;
+      font-size: 0.78rem;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .contrast-ok {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .contrast-warn {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    /* アクションボタン群 */
+    .action-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn-main {
+      padding: 12px;
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+
+    .btn-main:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-sub {
+      padding: 10px;
+      background: #ffffff;
+      color: #334155;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-sub:hover {
+      background: #f8fafc;
+    }
+
+    /* モーダルダイアログ */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background: #ffffff;
+      border-radius: 16px;
+      width: 92%;
+      max-width: 600px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.15);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+      margin-bottom: 16px;
+      flex-shrink: 0;
+    }
+
+    .modal-body-scroll {
+      overflow-y: auto;
+      padding-right: 4px;
+      flex: 1;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1;
+    }
+
+    /* 縦スクロール履歴リスト（モーダル内） */
+    .history-vertical-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .history-v-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      gap: 12px;
+    }
+
+    .history-v-item:hover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .history-v-info {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .history-v-title {
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-v-sub {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history-v-date {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* トースト通知 */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 2000;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* 一括プレビューグリッド */
+    .batch-result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+      max-height: 380px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+
+    .batch-card {
+      background: #f8fafc;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+    }
+
+    .batch-card:hover {
+      border-color: #93c5fd;
+    }
+
+    .batch-card.selected-edit {
+      border-color: var(--primary);
+      background: #eff6ff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .batch-custom-tag {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: var(--warning);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .batch-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+
+    /* 印刷スタイル */
+    @media print {
+      body > *:not(#printArea) {
+        display: none !important;
+      }
+      #printArea {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+      .print-header {
+        font-size: 1.2rem;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #000;
+      }
+      .print-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--print-cols, 2), 1fr);
+        gap: 16px;
+      }
+      .print-item-box {
+        text-align: center;
+        break-inside: avoid;
+      }
+      .print-item-label {
+        font-size: 0.72rem;
+        margin-top: 4px;
+        word-break: break-all;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-area">
+      <h1>📷 枠付きQRコード作成ツール</h1>
+    </div>
+    <div class="header-actions">
+      <button class="btn-header btn-history" onclick="toggleHistoryModal(true)">
+        🕒 作成履歴 <span class="history-badge" id="historyCountBadge">0</span>
+      </button>
+      <button class="btn-header" onclick="toggleHelpModal(true)">❓ 使い方はこちら</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 設定・入力エリア -->
+    <div class="main-column">
+
+      <!-- タブ選択（左から WEB URL、URL一括、グーグルフォーム、WIFI） -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchMainTab('url')">🌐 Web URL</button>
+        <button class="tab-btn" onclick="switchMainTab('batch')">📦 URL一括</button>
+        <button class="tab-btn" onclick="switchMainTab('gform')">📝 Googleフォーム</button>
+        <button class="tab-btn" onclick="switchMainTab('wifi')">📶 Wi-Fi設定</button>
+      </div>
+
+      <!-- 入力カード -->
+      <div class="card">
+        <!-- 1. Web URL -->
+        <div id="tabContentUrl">
+          <div class="card-title">🔗 リンク先URLの入力</div>
+          <div class="form-group">
+            <div class="input-wrapper">
+              <input type="text" id="targetUrl" placeholder="https://example.com" value="https://example.com" oninput="onUrlInput()" onchange="commitHistory()">
+              <button class="btn-paste" onclick="pasteUrl()">📋 貼り付け</button>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">※ http(s):// は自動補完されます</p>
+          </div>
+        </div>
+
+        <!-- 2. URL一括作成 -->
+        <div id="tabContentBatch" style="display: none;">
+          <div class="card-title">📦 URL一括QRコード作成</div>
+          <div class="form-group">
+            <label class="form-label">URLリスト（1行につき1件入力してください）</label>
+            <textarea id="batchInput" rows="5" placeholder="https://example.com/page1&#10;https://example.com/page2&#10;https://example.com/page3"></textarea>
+          </div>
+
+          <!-- 枠付き文章の適用モード選択 -->
+          <div class="batch-mode-box">
+            <label class="form-label" style="margin-bottom: 2px;">💬 枠付き文章設定（四方向）の適用方法</label>
+            <div class="radio-group">
+              <label class="radio-label">
+                <input type="radio" name="batchDirMode" value="bulk" checked onchange="onBatchDirModeChange()">
+                一括で設定する（全URL共通）
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="batchDirMode" value="individual" onchange="onBatchDirModeChange()">
+                個別で設定する（下のカードをクリックして編集）
+              </label>
+            </div>
+            <p id="batchModeHint" style="font-size: 0.74rem; color: var(--text-muted); margin-top: 4px;">
+              ※ 下の「枠付き文章設定」の内容がすべてのQRコードに一括反映されます。
+            </p>
+          </div>
+
+          <button class="btn-main" style="width: 100%;" onclick="processBatch()">⚡ それぞれのQRコードを一括生成</button>
+
+          <!-- 一括変換結果表示エリア -->
+          <div id="batchContainer" style="display: none; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <span class="form-label" style="margin: 0;" id="batchResultCount">生成結果一覧</span>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn-sub" style="padding: 5px 10px; font-size: 0.78rem; background: #eff6ff; color: var(--primary); border-color: #bfdbfe;" onclick="downloadBatchZip()">📦 ZIPで一括保存</button>
+                <button class="btn-sub" style="padding: 5px 10px; font-size: 0.78rem;" onclick="printBatchAll()">🖨 一覧を印刷</button>
+              </div>
+            </div>
+            <p id="batchClickGuide" style="font-size: 0.75rem; color: var(--primary); margin-top: 6px; display: none;">
+              💡 編集したいQRコードのカードをクリックすると、下の「枠付き文章設定」で個別に編集できます。
+            </p>
+            <div class="batch-result-grid" id="batchResultGrid"></div>
+          </div>
+        </div>
+
+        <!-- 3. Googleフォーム -->
+        <div id="tabContentGForm" style="display: none;">
+          <div class="card-title">📝 Googleフォーム設定</div>
+          <div class="form-group">
+            <label class="form-label">GoogleフォームURL / 事前入力リンク</label>
+            <div class="input-wrapper">
+              <input type="text" id="gformUrl" placeholder="https://docs.google.com/forms/d/e/.../viewform" oninput="onGFormInput()" onchange="commitHistory()">
+              <button class="btn-paste" onclick="pasteGFormUrl()">📋 貼り付け</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <label class="form-label" style="margin: 0;">クラス・班 クイック選択パラメータ</label>
+              <button type="button" class="btn-sub" style="padding: 2px 8px; font-size: 0.75rem;" onclick="clearGFormSelection()">選択解除</button>
+            </div>
+            <div class="gform-selector-box">
+              <div class="gform-sub-label">学年（1〜3年）</div>
+              <div class="num-grid" id="gformGradeGrid"></div>
+
+              <div class="gform-sub-label">組（1〜15組）</div>
+              <div class="num-grid" id="gformClassGrid"></div>
+
+              <div class="gform-sub-label">班（1〜10班）</div>
+              <div class="num-grid" id="gformGroupGrid"></div>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">
+              ※ 選択した「学年・組・班」の組み合わせがURLパラメータに自動反映されます。
+            </p>
+          </div>
+        </div>
+
+        <!-- 4. Wi-Fi設定 -->
+        <div id="tabContentWifi" style="display: none;">
+          <div class="card-title">📶 Wi-Fi自動接続QR作成</div>
+          <div class="form-group">
+            <label class="form-label">SSID（ネットワーク名）</label>
+            <input type="text" id="wifiSsid" placeholder="School_Wi-Fi" oninput="updateWifiQr()" onchange="commitHistory()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">パスワード</label>
+            <input type="text" id="wifiPassword" placeholder="Password123" oninput="updateWifiQr()" onchange="commitHistory()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">暗号化方式</label>
+            <select id="wifiType" onchange="updateWifiQr(); commitHistory();">
+              <option value="WPA">WPA/WPA2/WPA3</option>
+              <option value="WEP">WEP</option>
+              <option value="nopass">暗号化なし（オープン）</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 四方向テキストレイアウト設定 -->
+      <div class="card" id="dirSettingsCard">
+        <div class="card-title">
+          <span>💬 枠付き文章設定（四方向）</span>
+          <span id="dirScopeBadge" style="font-size: 0.75rem; background: #eff6ff; color: var(--primary); padding: 2px 8px; border-radius: 12px;">全体・一括設定</span>
+        </div>
+
+        <!-- 個別設定モード中の対象表示バナー -->
+        <div id="individualEditBanner" class="editing-target-banner" style="display: none;">
+          <span id="individualEditLabel">編集中: #1 https://...</span>
+          <button type="button" class="btn-sub" style="padding: 2px 8px; font-size: 0.72rem;" onclick="resetSelectedBatchItemDirs()">共通設定に戻す</button>
+        </div>
+        
+        <!-- 方向切り替えボタン -->
+        <div class="dir-nav">
+          <button class="dir-btn active" id="dirBtnTop" onclick="switchDirection('top')">⬆ 上部</button>
+          <button class="dir-btn" id="dirBtnBottom" onclick="switchDirection('bottom')">⬇ 下部</button>
+          <button class="dir-btn" id="dirBtnLeft" onclick="switchDirection('left')">⬅ 左側</button>
+          <button class="dir-btn" id="dirBtnRight" onclick="switchDirection('right')">➡ 右側</button>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin: 0;">表示テキスト（長いURLも自動縮小して収まります）</label>
+            <label style="font-size: 0.8rem; cursor: pointer;">
+              <input type="checkbox" id="dirEnable" onchange="updateCurrentDirSetting()"> この方向を表示する
+            </label>
+          </div>
+          <div class="input-wrapper">
+            <input type="text" id="dirText" placeholder="テキストを入力すると枠が表示されます..." oninput="onDirTextInput()">
+            <button type="button" class="btn-paste" onclick="clearCurrentDirText()">クリア</button>
+          </div>
+        </div>
+
+        <!-- よく使う定型文パレット（入力URL挿入ボタン付き） -->
+        <div class="form-group">
+          <label class="form-label">よく使うフレーズ ＆ URL挿入 (ワンタップ入力)</label>
+          <div class="phrase-chips" id="phrasePalette">
+            <!-- 動的挿入 -->
+          </div>
+        </div>
+
+        <!-- 個別文字・枠のスタイリング -->
+        <div class="style-grid">
+          <div>
+            <label class="form-label">基準文字サイズ</label>
+            <select id="dirFontSize" onchange="updateCurrentDirSetting()">
+              <option value="12">小 (12px)</option>
+              <option value="16" selected>中 (16px)</option>
+              <option value="20">大 (20px)</option>
+              <option value="24">特大 (24px)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">文字色</label>
+            <div class="color-picker-item">
+              <input type="color" id="dirTextColor" value="#ffffff" oninput="updateCurrentDirSetting()" onchange="updateCurrentDirSetting()">
+            </div>
+          </div>
+          <div>
+            <label class="form-label">枠背景色</label>
+            <div class="color-picker-item">
+              <input type="color" id="dirBgColor" value="#2563eb" oninput="updateCurrentDirSetting()" onchange="updateCurrentDirSetting()">
+            </div>
+          </div>
+          <div id="verticalOption" style="display: none;">
+            <label class="form-label">文字方向（左右用）</label>
+            <select id="dirOrient" onchange="updateCurrentDirSetting()">
+              <option value="vertical" selected>縦書き（日本語向け）</option>
+              <option value="horizontal">横書き（URL・英数字向け）</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- デザイン・テーマカスタマイズ -->
+      <div class="card">
+        <div class="card-title">🎨 テーマ ＆ アイコン設定</div>
+        
+        <div class="form-group">
+          <label class="form-label">ワンクリック配色テーマ</label>
+          <div class="theme-grid">
+            <button class="theme-btn" onclick="applyTheme('standard')"><span class="theme-dot" style="background:#2563eb;"></span> 標準ブルー</button>
+            <button class="theme-btn" onclick="applyTheme('gpurple')"><span class="theme-dot" style="background:#7c3aed;"></span> Google紫</button>
+            <button class="theme-btn" onclick="applyTheme('school')"><span class="theme-dot" style="background:#059669;"></span> 学校ポップ</button>
+            <button class="theme-btn" onclick="applyTheme('chic')"><span class="theme-dot" style="background:#1e293b;"></span> シック黒</button>
+            <button class="theme-btn" onclick="applyTheme('warning')"><span class="theme-dot" style="background:#dc2626;"></span> 注目レッド</button>
+            <button class="theme-btn" onclick="applyTheme('natural')"><span class="theme-dot" style="background:#d97706;"></span> オレンジ</button>
+          </div>
+        </div>
+
+        <div class="style-grid">
+          <div>
+            <label class="form-label">QRコードドット色</label>
+            <div class="color-picker-item">
+              <input type="color" id="qrDarkColor" value="#000000" oninput="onThemeColorChanged()" onchange="onThemeColorChanged()">
+            </div>
+          </div>
+          <div>
+            <label class="form-label">カード背景色</label>
+            <div class="color-picker-item">
+              <input type="color" id="qrLightColor" value="#ffffff" oninput="onThemeColorChanged()" onchange="onThemeColorChanged()">
+            </div>
+          </div>
+          <div>
+            <label class="form-label">ドット形状</label>
+            <select id="dotStyle" onchange="onThemeColorChanged()">
+              <option value="square" selected>標準 (四角)</option>
+              <option value="circle">ポップ (丸型)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">中央アイコン/ロゴ</label>
+            <select id="centerIconType" onchange="onCenterIconChange()">
+              <option value="none">なし</option>
+              <option value="emoji">絵文字</option>
+              <option value="image">画像アップロード</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="emojiSelectGroup" class="form-group" style="margin-top: 10px; display: none;">
+          <label class="form-label">絵文字を選択</label>
+          <div class="phrase-chips">
+            <span class="chip" onclick="selectEmoji('🔗')">🔗</span>
+            <span class="chip" onclick="selectEmoji('📝')">📝</span>
+            <span class="chip" onclick="selectEmoji('🏫')">🏫</span>
+            <span class="chip" onclick="selectEmoji('📹')">📹</span>
+            <span class="chip" onclick="selectEmoji('💡')">💡</span>
+            <span class="chip" onclick="selectEmoji('📌')">📌</span>
+          </div>
+        </div>
+
+        <div id="imageUploadGroup" class="form-group" style="margin-top: 10px; display: none;">
+          <label class="form-label">ロゴ画像を選択 (PNG/JPG)</label>
+          <input type="file" id="logoFileInput" accept="image/*" onchange="handleLogoUpload(event)">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- プレビュー＆ダウンロード カラム -->
+    <div class="preview-column">
+      <div class="card">
+        <div class="card-title">
+          <span>👁 リアルタイムプレビュー</span>
+          <span id="previewTargetLabel" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;"></span>
+        </div>
+        <div class="preview-box">
+          <canvas id="qrCanvas" width="400" height="400"></canvas>
+          <div id="contrastBadge" class="contrast-badge contrast-ok">✓ 読み取り視認性良好</div>
+        </div>
+
+        <div class="action-btns">
+          <button class="btn-main" onclick="downloadPNG()">💾 PNG画像として保存</button>
+          <button class="btn-sub" onclick="downloadSVG()">📐 SVG形式で保存 (ベクター)</button>
+          <button class="btn-sub" onclick="copyToClipboard()">📋 画像をクリップボードにコピー</button>
+          
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <label style="font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+              <input type="checkbox" id="transparentBg" onchange="onThemeColorChanged()"> 背景を透過する
+            </label>
+          </div>
+
+          <hr style="border: none; border-top: 1px solid var(--border); margin: 8px 0;">
+
+          <div class="form-group" style="margin-bottom: 8px;">
+            <label class="form-label">A4印刷用ヘッダータイトル</label>
+            <input type="text" id="printHeaderTitle" placeholder="例：〇年〇組 提出用QRコード配布シート" style="font-size: 0.85rem; padding: 6px 10px;">
+          </div>
+
+          <label class="form-label">A4一括印刷枚数配置</label>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn-sub" style="flex:1;" onclick="printLayout(1)">1個</button>
+            <button class="btn-sub" style="flex:1;" onclick="printLayout(4)">4個</button>
+            <button class="btn-sub" style="flex:1;" onclick="printLayout(6)">6個</button>
+            <button class="btn-sub" style="flex:1;" onclick="printLayout(9)">9個</button>
+            <button class="btn-sub" style="flex:1;" onclick="printLayout(12)">12個</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 作成履歴モーダル（縦スクロール） -->
+  <div class="modal-overlay" id="historyModal" onclick="if(event.target===this) toggleHistoryModal(false)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>🕒 作成履歴（最大30件）</h2>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="btn-sub" style="padding: 4px 10px; font-size: 0.78rem; color: var(--danger); border-color: #fecaca;" onclick="clearHistory()">🗑 履歴削除</button>
+          <button class="modal-close" onclick="toggleHistoryModal(false)">&times;</button>
+        </div>
+      </div>
+      <div class="modal-body-scroll">
+        <div class="history-vertical-list" id="historyList">
+          <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 20px;">履歴はありません</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ヘルプモーダル -->
+  <div class="modal-overlay" id="helpModal" onclick="if(event.target===this) toggleHelpModal(false)">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>❓ 枠付きQRコード作成ツールの使い方</h2>
+        <button class="modal-close" onclick="toggleHelpModal(false)">&times;</button>
+      </div>
+      <div class="modal-body-scroll" style="font-size: 0.9rem; line-height: 1.6;">
+        <h3 style="color: var(--primary); margin-bottom: 4px;">1. URLやGoogleフォームを入力</h3>
+        <p>上部の「Web URL」にリンク先を入力します。「Googleフォーム」タブでは、1〜3年・1〜15組・1〜10班を組み合わせて事前入力パラメータを素早くセットできます。</p>
+
+        <h3 style="color: var(--primary); margin-top: 14px; margin-bottom: 4px;">2. URL一括作成（一括・個別文章設定対応）</h3>
+        <p>「URL一括」タブで複数のURLを改行区切りで貼り付けると、それぞれのQRコードをまとめて生成します。「一括で設定する」では全QRに同じ枠文章を、「個別で設定する」ではカードをクリックして1枚ずつ異なる枠文章を設定できます。</p>
+
+        <h3 style="color: var(--primary); margin-top: 14px; margin-bottom: 4px;">3. 枠（四方向）に文章・URLをセット</h3>
+        <p>上・下・左・右のタブからテキストを入力できます。左・右は「縦書き（日本語向け）」と「横書き（URL・英数字向け）」を切り替えられます。</p>
+
+        <h3 style="color: var(--primary); margin-top: 14px; margin-bottom: 4px;">4. 保存・A4一括印刷（最大12個）</h3>
+        <p>PNG/SVG保存やZIP一括ダウンロードのほか、A4用紙に1・4・6・9・12個並べてプリント配布用に印刷できます。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div class="toast" id="toast">メッセージ</div>
+
+  <!-- 印刷用非表示領域 -->
+  <div id="printArea" style="display: none;"></div>
+
+  <!-- JavaScript: 埋め込みQRエンジン ＆ アプリ制御 -->
+  <script>
+    /* =========================================================
+       1. 純粋JavaScript 完全実装QRコード生成エンジン (Version 1-40 フル対応)
+       ========================================================= */
+    const QRCodeLib = (function() {
+      function QRPolynomial(num, shift) {
+        if (num.length == undefined) throw new Error(num.length + "/" + shift);
+        let offset = 0;
+        while (offset < num.length && num[offset] == 0) offset++;
+        this.num = new Array(num.length - offset + shift);
+        for (let i = 0; i < num.length - offset; i++) this.num[i] = num[offset + i];
+      }
+      QRPolynomial.prototype = {
+        get: function(index) { return this.num[index]; },
+        getLength: function() { return this.num.length; },
+        multiply: function(e) {
+          const num = new Array(this.getLength() + e.getLength() - 1).fill(0);
+          for (let i = 0; i < this.getLength(); i++) {
+            for (let j = 0; j < e.getLength(); j++) {
+              if (this.get(i) === 0 || e.get(j) === 0) continue;
+              num[i + j] ^= QRMath.gexp(QRMath.glog(this.get(i)) + QRMath.glog(e.get(j)));
+            }
+          }
+          return new QRPolynomial(num, 0);
+        },
+        mod: function(e) {
+          if (this.getLength() - e.getLength() < 0) return this;
+          const ratio = QRMath.glog(this.get(0)) - QRMath.glog(e.get(0));
+          const num = this.num.slice();
+          for (let i = 0; i < e.getLength(); i++) {
+            num[i] ^= QRMath.gexp(QRMath.glog(e.get(i)) + ratio);
+          }
+          return new QRPolynomial(num, 0).mod(e);
+        }
+      };
+
+      const QRMath = {
+        glog: function(n) {
+          if (n < 1) throw new Error("glog(" + n + ")");
+          return QRMath.LOG_TABLE[n];
+        },
+        gexp: function(n) {
+          while (n < 0) n += 255;
+          while (n >= 256) n -= 255;
+          return QRMath.EXP_TABLE[n];
+        },
+        EXP_TABLE: new Array(256),
+        LOG_TABLE: new Array(256)
+      };
+
+      for (let i = 0; i < 8; i++) QRMath.EXP_TABLE[i] = 1 << i;
+      for (let i = 8; i < 256; i++) QRMath.EXP_TABLE[i] = QRMath.EXP_TABLE[i - 4] ^ QRMath.EXP_TABLE[i - 5] ^ QRMath.EXP_TABLE[i - 6] ^ QRMath.EXP_TABLE[i - 8];
+      for (let i = 0; i < 255; i++) QRMath.LOG_TABLE[QRMath.EXP_TABLE[i]] = i;
+
+      function QRRSBlock(totalCount, dataCount) {
+        this.totalCount = totalCount;
+        this.dataCount = dataCount;
+      }
+      QRRSBlock.RS_BLOCK_TABLE = [
+        [1,26,19],[1,26,16],[1,26,13],[1,26,9],
+        [1,44,34],[1,44,28],[1,44,22],[1,44,16],
+        [1,70,55],[1,70,44],[2,35,17],[2,35,13],
+        [1,100,80],[2,50,32],[2,50,24],[4,25,9],
+        [1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],
+        [2,86,68],[4,43,27],[4,43,19],[4,43,15],
+        [2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],
+        [2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],
+        [2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],
+        [2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],
+        [4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],
+        [2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],
+        [4,133,107],[8,59,37],[8,37,15,4,38,16],[12,33,11,4,34,12],
+        [3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],
+        [5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],
+        [5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],
+        [1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],
+        [5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],
+        [3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],
+        [3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],
+        [4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],
+        [2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],
+        [4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],
+        [6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],
+        [8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],
+        [10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],
+        [8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,22,54,24],[12,45,15,28,46,16],
+        [3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],
+        [7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],
+        [5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],
+        [13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],
+        [17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],
+        [17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],
+        [13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],
+        [12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],
+        [6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],
+        [17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],
+        [4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],
+        [20,147,117,4,148,118],[40,75,47,1,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],
+        [19,148,118,6,149,119],[18,75,47,26,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]
+      ];
+
+      QRRSBlock.getRSBlocks = function(typeNumber, errorCorrectLevel) {
+        const rsBlock = QRRSBlock.getRsBlockTable(typeNumber, errorCorrectLevel);
+        if (rsBlock == undefined) throw new Error("bad rs block @ typeNumber:" + typeNumber);
+        const length = rsBlock.length / 3;
+        const list = [];
+        for (let i = 0; i < length; i++) {
+          const count = rsBlock[i * 3 + 0];
+          const totalCount = rsBlock[i * 3 + 1];
+          const dataCount = rsBlock[i * 3 + 2];
+          for (let j = 0; j < count; j++) list.push(new QRRSBlock(totalCount, dataCount));
+        }
+        return list;
+      };
+
+      QRRSBlock.getRsBlockTable = function(typeNumber, errorCorrectLevel) {
+        switch (errorCorrectLevel) {
+          case 1: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+          case 0: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+          case 3: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+          case 2: return QRRSBlock.RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+          default: return undefined;
+        }
+      };
+
+      function BitBuffer() {
+        this.buffer = [];
+        this.length = 0;
+      }
+      BitBuffer.prototype = {
+        get: function(index) {
+          const bufIndex = Math.floor(index / 8);
+          return ((this.buffer[bufIndex] >>> (7 - index % 8)) & 1) == 1;
+        },
+        put: function(num, length) {
+          for (let i = 0; i < length; i++) this.putBit(((num >>> (length - i - 1)) & 1) == 1);
+        },
+        putBit: function(bit) {
+          if (this.length == this.buffer.length * 8) this.buffer.push(0);
+          if (bit) this.buffer[this.length >>> 3] |= (0x80 >>> (this.length % 8));
+          this.length++;
+        }
+      };
+
+      function QRCode(typeNumber, errorCorrectLevel) {
+        this.typeNumber = typeNumber;
+        this.errorCorrectLevel = errorCorrectLevel;
+        this.modules = null;
+        this.moduleCount = 0;
+        this.dataCache = null;
+        this.dataList = [];
+      }
+
+      QRCode.prototype = {
+        addData: function(data) {
+          this.dataList.push(new QR8BitByte(data));
+          this.dataCache = null;
+        },
+        isDark: function(row, col) {
+          if (row < 0 || this.moduleCount <= row || col < 0 || this.moduleCount <= col) throw new Error(row + "," + col);
+          return this.modules[row][col];
+        },
+        getModuleCount: function() { return this.moduleCount; },
+        make: function() {
+          if (this.typeNumber < 1) {
+            let typeNumber = 1;
+            for (typeNumber = 1; typeNumber <= 40; typeNumber++) {
+              const rsBlocks = QRRSBlock.getRSBlocks(typeNumber, this.errorCorrectLevel);
+              const buffer = new BitBuffer();
+              let totalDataCount = 0;
+              for (let i = 0; i < rsBlocks.length; i++) totalDataCount += rsBlocks[i].dataCount;
+              for (let i = 0; i < this.dataList.length; i++) {
+                const data = this.dataList[i];
+                buffer.put(4, 4);
+                buffer.put(data.getLength(), QRCode.getLengthInBits(4, typeNumber));
+                data.write(buffer);
+              }
+              if (buffer.length <= totalDataCount * 8) break;
+            }
+            if (typeNumber > 40) throw new Error("データ長がQRコードの許容量を超えています。");
+            this.typeNumber = typeNumber;
+          }
+          this.makeImpl(false, this.getBestMaskPattern());
+        },
+        makeImpl: function(test, maskPattern) {
+          this.moduleCount = this.typeNumber * 4 + 17;
+          this.modules = new Array(this.moduleCount);
+          for (let row = 0; row < this.moduleCount; row++) {
+            this.modules[row] = new Array(this.moduleCount).fill(null);
+          }
+          this.setupPositionProbePattern(0, 0);
+          this.setupPositionProbePattern(this.moduleCount - 7, 0);
+          this.setupPositionProbePattern(0, this.moduleCount - 7);
+          this.setupPositionAdjustPattern();
+          this.setupTimingPattern();
+          this.setupTypeInfo(test, maskPattern);
+          if (this.typeNumber >= 7) this.setupTypeNumber(test);
+          if (this.dataCache == null) this.dataCache = QRCode.createData(this.typeNumber, this.errorCorrectLevel, this.dataList);
+          this.mapData(this.dataCache, maskPattern);
+        },
+        setupPositionProbePattern: function(row, col) {
+          for (let r = -1; r <= 7; r++) {
+            if (row + r <= -1 || this.moduleCount <= row + r) continue;
+            for (let c = -1; c <= 7; c++) {
+              if (col + c <= -1 || this.moduleCount <= col + c) continue;
+              if ((0 <= r && r <= 6 && (c == 0 || c == 6)) || (0 <= c && c <= 6 && (r == 0 || r == 6)) || (2 <= r && r <= 4 && 2 <= c && c <= 4)) {
+                this.modules[row + r][col + c] = true;
+              } else {
+                this.modules[row + r][col + c] = false;
+              }
+            }
+          }
+        },
+        getBestMaskPattern: function() {
+          let minLostPoint = 0;
+          let bestMaskPattern = 0;
+          for (let i = 0; i < 8; i++) {
+            this.makeImpl(true, i);
+            const lostPoint = QRCode.getLostPoint(this);
+            if (i == 0 || minLostPoint > lostPoint) {
+              minLostPoint = lostPoint;
+              bestMaskPattern = i;
+            }
+          }
+          return bestMaskPattern;
+        },
+        setupTimingPattern: function() {
+          for (let r = 8; r < this.moduleCount - 8; r++) {
+            if (this.modules[r][6] != null) continue;
+            this.modules[r][6] = (r % 2 == 0);
+          }
+          for (let c = 8; c < this.moduleCount - 8; c++) {
+            if (this.modules[6][c] != null) continue;
+            this.modules[6][c] = (c % 2 == 0);
+          }
+        },
+        setupPositionAdjustPattern: function() {
+          const pos = QRCode.getPatternPosition(this.typeNumber);
+          for (let i = 0; i < pos.length; i++) {
+            for (let j = 0; j < pos.length; j++) {
+              const row = pos[i];
+              const col = pos[j];
+              if (this.modules[row][col] != null) continue;
+              for (let r = -2; r <= 2; r++) {
+                for (let c = -2; c <= 2; c++) {
+                  if (r == -2 || r == 2 || c == -2 || c == 2 || (r == 0 && c == 0)) {
+                    this.modules[row + r][col + c] = true;
+                  } else {
+                    this.modules[row + r][col + c] = false;
+                  }
+                }
+              }
+            }
+          }
+        },
+        setupTypeNumber: function(test) {
+          const bits = QRCode.getBCHTypeNumber(this.typeNumber);
+          for (let i = 0; i < 18; i++) {
+            const mod = (!test && ((bits >> i) & 1) == 1);
+            this.modules[Math.floor(i / 3)][i % 3 + this.moduleCount - 8 - 3] = mod;
+          }
+          for (let i = 0; i < 18; i++) {
+            const mod = (!test && ((bits >> i) & 1) == 1);
+            this.modules[i % 3 + this.moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+          }
+        },
+        setupTypeInfo: function(test, maskPattern) {
+          const data = (this.errorCorrectLevel << 3) | maskPattern;
+          const bits = QRCode.getBCHTypeInfo(data);
+          for (let i = 0; i < 15; i++) {
+            const mod = (!test && ((bits >> i) & 1) == 1);
+            if (i < 6) this.modules[i][8] = mod;
+            else if (i < 8) this.modules[i + 1][8] = mod;
+            else this.modules[this.moduleCount - 15 + i][8] = mod;
+          }
+          for (let i = 0; i < 15; i++) {
+            const mod = (!test && ((bits >> i) & 1) == 1);
+            if (i < 8) this.modules[8][this.moduleCount - i - 1] = mod;
+            else if (i < 9) this.modules[8][15 - i - 1 + 1] = mod;
+            else this.modules[8][15 - i - 1] = mod;
+          }
+          this.modules[this.moduleCount - 8][8] = (!test);
+        },
+        mapData: function(data, maskPattern) {
+          let inc = -1;
+          let row = this.moduleCount - 1;
+          let bitIndex = 7;
+          let byteIndex = 0;
+          for (let col = this.moduleCount - 1; col > 0; col -= 2) {
+            if (col == 6) col--;
+            while (true) {
+              for (let c = 0; c < 2; c++) {
+                if (this.modules[row][col - c] == null) {
+                  let dark = false;
+                  if (byteIndex < data.length) dark = (((data[byteIndex] >>> bitIndex) & 1) == 1);
+                  const mask = QRCode.getMask(maskPattern, row, col - c);
+                  if (mask) dark = !dark;
+                  this.modules[row][col - c] = dark;
+                  bitIndex--;
+                  if (bitIndex == -1) { byteIndex++; bitIndex = 7; }
+                }
+              }
+              row += inc;
+              if (row < 0 || this.moduleCount <= row) {
+                row -= inc;
+                inc = -inc;
+                break;
+              }
+            }
+          }
+        }
+      };
+
+      QRCode.getLostPoint = function(qrCode) {
+        const moduleCount = qrCode.getModuleCount();
+        let lostPoint = 0;
+        for (let row = 0; row < moduleCount; row++) {
+          for (let col = 0; col < moduleCount; col++) {
+            let sameCount = 0;
+            const dark = qrCode.isDark(row, col);
+            for (let r = -1; r <= 1; r++) {
+              if (row + r < 0 || moduleCount <= row + r) continue;
+              for (let c = -1; c <= 1; c++) {
+                if (col + c < 0 || moduleCount <= col + c) continue;
+                if (r == 0 && c == 0) continue;
+                if (dark == qrCode.isDark(row + r, col + c)) sameCount++;
+              }
+            }
+            if (sameCount > 5) lostPoint += (3 + sameCount - 5);
+          }
+        }
+        return lostPoint;
+      };
+
+      QRCode.getBCHTypeInfo = function(data) {
+        let d = data << 10;
+        while (QRCode.getBCHDigit(d) - QRCode.getBCHDigit(1335) >= 0) {
+          d ^= (1335 << (QRCode.getBCHDigit(d) - QRCode.getBCHDigit(1335)));
+        }
+        return ((data << 10) | d) ^ 21522;
+      };
+
+      QRCode.getBCHTypeNumber = function(data) {
+        let d = data << 12;
+        while (QRCode.getBCHDigit(d) - QRCode.getBCHDigit(7973) >= 0) {
+          d ^= (7973 << (QRCode.getBCHDigit(d) - QRCode.getBCHDigit(7973)));
+        }
+        return (data << 12) | d;
+      };
+
+      QRCode.getBCHDigit = function(data) {
+        let digit = 0;
+        while (data != 0) { digit++; data >>>= 1; }
+        return digit;
+      };
+
+      QRCode.getPatternPosition = function(typeNumber) {
+        return QRCode.PATTERN_POSITION_TABLE[typeNumber - 1];
+      };
+
+      QRCode.PATTERN_POSITION_TABLE = [
+        [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42], [6, 26, 46], [6, 28, 50],
+        [6, 30, 54], [6, 32, 58], [6, 34, 62], [6, 26, 46, 66], [6, 26, 48, 70], [6, 26, 50, 74], [6, 30, 54, 78],
+        [6, 30, 56, 82], [6, 30, 58, 86], [6, 34, 62, 90], [6, 28, 50, 72, 94], [6, 26, 50, 74, 98], [6, 30, 54, 78, 102],
+        [6, 28, 54, 80, 106], [6, 32, 58, 84, 110], [6, 30, 58, 86, 114], [6, 34, 62, 90, 118], [6, 26, 50, 74, 98, 122],
+        [6, 30, 54, 78, 102, 126], [6, 26, 52, 78, 104, 130], [6, 30, 56, 82, 108, 134], [6, 34, 60, 86, 112, 138],
+        [6, 30, 58, 86, 114, 142], [6, 34, 62, 90, 118, 146], [6, 30, 54, 78, 102, 126, 150], [6, 24, 50, 76, 102, 128, 154],
+        [6, 28, 54, 80, 106, 132, 158], [6, 32, 58, 84, 110, 136, 162], [6, 26, 54, 82, 110, 138, 166], [6, 30, 58, 86, 114, 142, 170]
+      ];
+
+      QRCode.getMask = function(maskPattern, i, j) {
+        switch (maskPattern) {
+          case 0: return (i + j) % 2 == 0;
+          case 1: return i % 2 == 0;
+          case 2: return j % 3 == 0;
+          case 3: return (i + j) % 3 == 0;
+          case 4: return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 == 0;
+          case 5: return (i * j) % 2 + (i * j) % 3 == 0;
+          case 6: return ((i * j) % 2 + (i * j) % 3) % 2 == 0;
+          case 7: return ((i * j) % 3 + (i + j) % 2) % 2 == 0;
+          default: return false;
+        }
+      };
+
+      QRCode.createData = function(typeNumber, errorCorrectLevel, dataList) {
+        const rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectLevel);
+        const buffer = new BitBuffer();
+        for (let i = 0; i < dataList.length; i++) {
+          const data = dataList[i];
+          buffer.put(4, 4);
+          buffer.put(data.getLength(), QRCode.getLengthInBits(4, typeNumber));
+          data.write(buffer);
+        }
+        let totalDataCount = 0;
+        for (let i = 0; i < rsBlocks.length; i++) totalDataCount += rsBlocks[i].dataCount;
+        if (buffer.length > totalDataCount * 8) throw new Error("code length overflow!");
+        if (buffer.length + 4 <= totalDataCount * 8) buffer.put(0, 4);
+        while (buffer.length % 8 != 0) buffer.putBit(false);
+        while (true) {
+          if (buffer.length >= totalDataCount * 8) break;
+          buffer.put(236, 8);
+          if (buffer.length >= totalDataCount * 8) break;
+          buffer.put(17, 8);
+        }
+        return QRCode.createBytes(buffer, rsBlocks);
+      };
+
+      QRCode.createBytes = function(buffer, rsBlocks) {
+        let offset = 0;
+        let maxDcCount = 0;
+        let maxEcCount = 0;
+        const dcdata = new Array(rsBlocks.length);
+        const ecdata = new Array(rsBlocks.length);
+        for (let r = 0; r < rsBlocks.length; r++) {
+          const dcCount = rsBlocks[r].dataCount;
+          const ecCount = rsBlocks[r].totalCount - dcCount;
+          maxDcCount = Math.max(maxDcCount, dcCount);
+          maxEcCount = Math.max(maxEcCount, ecCount);
+          dcdata[r] = new Array(dcCount);
+          for (let i = 0; i < dcdata[r].length; i++) dcdata[r][i] = 0xff & buffer.buffer[i + offset];
+          offset += dcCount;
+          const rsPoly = QRCode.getPolynomial(ecCount);
+          const rawPoly = new QRPolynomial(dcdata[r], rsPoly.getLength() - 1);
+          const modPoly = rawPoly.mod(rsPoly);
+          ecdata[r] = new Array(rsPoly.getLength() - 1);
+          for (let i = 0; i < ecdata[r].length; i++) {
+            const modIndex = i + modPoly.getLength() - ecdata[r].length;
+            ecdata[r][i] = (modIndex >= 0) ? modPoly.get(modIndex) : 0;
+          }
+        }
+        let totalCodeCount = 0;
+        for (let i = 0; i < rsBlocks.length; i++) totalCodeCount += rsBlocks[i].totalCount;
+        const data = new Array(totalCodeCount);
+        let index = 0;
+        for (let i = 0; i < maxDcCount; i++) {
+          for (let r = 0; r < rsBlocks.length; r++) {
+            if (i < dcdata[r].length) { data[index] = dcdata[r][i]; index++; }
+          }
+        }
+        for (let i = 0; i < maxEcCount; i++) {
+          for (let r = 0; r < rsBlocks.length; r++) {
+            if (i < ecdata[r].length) { data[index] = ecdata[r][i]; index++; }
+          }
+        }
+        return data;
+      };
+
+      QRCode.getPolynomial = function(errorCorrectLength) {
+        let a = new QRPolynomial([1], 0);
+        for (let i = 0; i < errorCorrectLength; i++) {
+          a = a.multiply(new QRPolynomial([1, QRMath.gexp(i)], 0));
+        }
+        return a;
+      };
+
+      QRCode.getLengthInBits = function(mode, type) {
+        if (1 <= type && type < 10) return 8;
+        else return 16;
+      };
+
+      function QR8BitByte(data) {
+        this.mode = 4;
+        this.data = data;
+      }
+      QR8BitByte.prototype = {
+        getLength: function() {
+          return new TextEncoder().encode(this.data).length;
+        },
+        write: function(buffer) {
+          const bytes = new TextEncoder().encode(this.data);
+          for (let i = 0; i < bytes.length; i++) buffer.put(bytes[i], 8);
+        }
+      };
+
+      return {
+        createMatrix: function(text) {
+          const eccNum = 2; // Level H (復元率 30%)
+          const qr = new QRCode(0, eccNum);
+          qr.addData(text);
+          qr.make();
+          const count = qr.getModuleCount();
+          const modules = [];
+          for (let r = 0; r < count; r++) {
+            const row = [];
+            for (let c = 0; c < count; c++) {
+              row.push(qr.isDark(r, c));
+            }
+            modules.push(row);
+          }
+          return { size: count, modules: modules };
+        }
+      };
+    })();
+
+    /* =========================================================
+       2. アプリケーション状態 & 設定管理
+       ========================================================= */
+    function createDefaultDirs() {
+      return {
+        top: { enable: false, text: '', fontSize: 16, textColor: '#ffffff', bgColor: '#2563eb', orient: 'horizontal' },
+        bottom: { enable: false, text: '', fontSize: 16, textColor: '#ffffff', bgColor: '#2563eb', orient: 'horizontal' },
+        left: { enable: false, text: '', fontSize: 14, textColor: '#ffffff', bgColor: '#2563eb', orient: 'vertical' },
+        right: { enable: false, text: '', fontSize: 14, textColor: '#ffffff', bgColor: '#2563eb', orient: 'vertical' }
+      };
+    }
+
+    function cloneDirs(dirsObj) {
+      return JSON.parse(JSON.stringify(dirsObj));
+    }
+
+    const state = {
+      activeTab: 'url',
+      currentDir: 'top',
+      url: 'https://example.com',
+      gformUrl: '',
+      gformSelect: { grade: '', cls: '', group: '' },
+      wifi: { ssid: '', password: '', type: 'WPA' },
+
+      /* 一括作成関連 */
+      batchDirMode: 'bulk', // 'bulk' | 'individual'
+      batchResults: [],     // { index, rawUrl, url, dataUrl, customDirs, hasCustomOverride }
+      selectedBatchIndex: -1,
+
+      /* 共通の四方向設定 */
+      dirs: createDefaultDirs(),
+
+      qrDarkColor: '#000000',
+      qrLightColor: '#ffffff',
+      transparentBg: false,
+      dotStyle: 'square',
+      
+      centerIcon: 'none',
+      selectedEmoji: '🔗',
+      logoImage: null,
+      logoDataUrl: null,
+
+      defaultPhrases: [
+        '振り返りはこちら',
+        '先生から指示あったらアクセスしましょう',
+        '課題の提出先はこちら',
+        'アンケートにご協力ください',
+        'Wi-Fiに接続する',
+        '資料の閲覧はこちら'
+      ],
+      customPhrases: [],
+      history: []
+    };
+
+    // 初期化
+    window.addEventListener('DOMContentLoaded', function() {
+      initGFormQuickButtons();
+      loadLocalStorage();
+      renderPhrasePalette();
+      updateDirFormUI();
+      renderQR();
+    });
+
+    /* =========================================================
+       3. タブ ＆ 入力バインディング
+       ========================================================= */
+    function switchMainTab(tab) {
+      state.activeTab = tab;
+      const tabOrder = ['url', 'batch', 'gform', 'wifi'];
+      document.querySelectorAll('.tabs .tab-btn').forEach(function(b, i) {
+        b.classList.toggle('active', tabOrder[i] === tab);
+      });
+
+      document.getElementById('tabContentUrl').style.display = tab === 'url' ? 'block' : 'none';
+      document.getElementById('tabContentBatch').style.display = tab === 'batch' ? 'block' : 'none';
+      document.getElementById('tabContentGForm').style.display = tab === 'gform' ? 'block' : 'none';
+      document.getElementById('tabContentWifi').style.display = tab === 'wifi' ? 'block' : 'none';
+
+      updateDirScopeUI();
+      updateDirFormUI();
+      renderQR();
+    }
+
+    function normalizeUrl(val) {
+      const trimmed = (val || '').trim();
+      if (!trimmed) return '';
+      if (!trimmed.match(/^[a-zA-Z][a-zA-Z0-9+-.]*:\/\//)) {
+        return 'https://' + trimmed;
+      }
+      return trimmed;
+    }
+
+    function onUrlInput() {
+      const val = document.getElementById('targetUrl').value.trim();
+      state.url = normalizeUrl(val) || 'https://example.com';
+      renderQR();
+    }
+
+    function pasteUrl() {
+      navigator.clipboard.readText().then(function(text) {
+        document.getElementById('targetUrl').value = text;
+        onUrlInput();
+        commitHistory();
+        showToast('URLを貼り付けました');
+      }).catch(function() {
+        showToast('クリップボードの読み取りに失敗しました');
+      });
+    }
+
+    /* =========================================================
+       Googleフォーム クイック選択（1〜3年 / 1〜15組 / 1〜10班）
+       ========================================================= */
+    function initGFormQuickButtons() {
+      const gradeGrid = document.getElementById('gformGradeGrid');
+      for (let g = 1; g <= 3; g++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'num-btn';
+        btn.dataset.type = 'grade';
+        btn.dataset.val = g + '年';
+        btn.textContent = g + '年';
+        btn.onclick = function() { toggleGFormOption('grade', g + '年'); };
+        gradeGrid.appendChild(btn);
+      }
+
+      const classGrid = document.getElementById('gformClassGrid');
+      for (let c = 1; c <= 15; c++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'num-btn';
+        btn.dataset.type = 'cls';
+        btn.dataset.val = c + '組';
+        btn.textContent = c + '組';
+        btn.onclick = function() { toggleGFormOption('cls', c + '組'); };
+        classGrid.appendChild(btn);
+      }
+
+      const groupGrid = document.getElementById('gformGroupGrid');
+      for (let gr = 1; gr <= 10; gr++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'num-btn';
+        btn.dataset.type = 'group';
+        btn.dataset.val = gr + '班';
+        btn.textContent = gr + '班';
+        btn.onclick = function() { toggleGFormOption('group', gr + '班'); };
+        groupGrid.appendChild(btn);
+      }
+    }
+
+    function toggleGFormOption(type, value) {
+      state.gformSelect[type] = (state.gformSelect[type] === value) ? '' : value;
+      updateGFormButtonStates();
+      applyGFormCombinedParam();
+    }
+
+    function clearGFormSelection() {
+      state.gformSelect = { grade: '', cls: '', group: '' };
+      updateGFormButtonStates();
+      showToast('クラス・班の選択を解除しました');
+    }
+
+    function updateGFormButtonStates() {
+      document.querySelectorAll('.num-btn').forEach(function(btn) {
+        btn.classList.toggle('active', state.gformSelect[btn.dataset.type] === btn.dataset.val);
+      });
+    }
+
+    function applyGFormCombinedParam() {
+      const parts = [];
+      if (state.gformSelect.grade) parts.push(state.gformSelect.grade);
+      if (state.gformSelect.cls) parts.push(state.gformSelect.cls);
+      if (state.gformSelect.group) parts.push(state.gformSelect.group);
+
+      const combinedLabel = parts.join('');
+      if (!combinedLabel) return;
+
+      const input = document.getElementById('gformUrl');
+      let val = input.value.trim();
+      val = !val ? 'https://docs.google.com/forms/d/e/sample/viewform' : normalizeUrl(val);
+
+      if (val.indexOf('entry.') !== -1) {
+        val = val.replace(/(entry\.\d+=)[^&]*/, '$1' + encodeURIComponent(combinedLabel));
+      } else {
+        val += (val.indexOf('?') === -1 ? '?' : '&') + 'entry.1000000=' + encodeURIComponent(combinedLabel);
+      }
+
+      input.value = val;
+      state.gformUrl = val;
+      commitHistory();
+      showToast('「' + combinedLabel + '」パラメータを適用しました');
+      renderQR();
+    }
+
+    function pasteGFormUrl() {
+      navigator.clipboard.readText().then(function(text) {
+        document.getElementById('gformUrl').value = text;
+        onGFormInput();
+        commitHistory();
+        showToast('フォームURLを貼り付けました');
+      }).catch(function() {
+        showToast('クリップボードの読み取りに失敗しました');
+      });
+    }
+
+    function onGFormInput() {
+      const val = document.getElementById('gformUrl').value.trim();
+      state.gformUrl = normalizeUrl(val);
+      renderQR();
+    }
+
+    /* =========================================================
+       Wi-Fi 設定
+       ========================================================= */
+    function updateWifiQr() {
+      state.wifi.ssid = document.getElementById('wifiSsid').value.trim();
+      state.wifi.password = document.getElementById('wifiPassword').value.trim();
+      state.wifi.type = document.getElementById('wifiType').value;
+      renderQR();
+    }
+
+    function escapeWifiString(str) {
+      return str.replace(/([\\;:,"])/g, '\\$1');
+    }
+
+    /* =========================================================
+       URL一括作成（一括・個別 枠付き文章設定対応）
+       ========================================================= */
+    function onBatchDirModeChange() {
+      const radios = document.getElementsByName('batchDirMode');
+      for (let i = 0; i < radios.length; i++) {
+        if (radios[i].checked) {
+          state.batchDirMode = radios[i].value;
+          break;
+        }
+      }
+
+      const hint = document.getElementById('batchModeHint');
+      const guide = document.getElementById('batchClickGuide');
+
+      if (state.batchDirMode === 'bulk') {
+        hint.textContent = '※ 下の「枠付き文章設定」の内容がすべてのQRコードに一括反映されます。';
+        if (guide) guide.style.display = 'none';
+      } else {
+        hint.textContent = '※ 「一括生成」後、一覧のカードをクリックすると各URLごとに個別の枠付き文章を設定できます。';
+        if (guide && state.batchResults.length > 0) guide.style.display = 'block';
+        if (state.batchResults.length > 0 && state.selectedBatchIndex < 0) {
+          state.selectedBatchIndex = 0;
+        }
+      }
+
+      updateDirScopeUI();
+      updateDirFormUI();
+      refreshAllBatchCards();
+      renderQR();
+    }
+
+    function getEffectiveDirsForBatchItem(item) {
+      if (state.batchDirMode === 'individual' && item && item.customDirs) {
+        return item.customDirs;
+      }
+      return state.dirs;
+    }
+
+    function getActiveDirsObject() {
+      if (state.activeTab === 'batch' && state.batchDirMode === 'individual' && state.batchResults.length > 0) {
+        const idx = state.selectedBatchIndex >= 0 ? state.selectedBatchIndex : 0;
+        const item = state.batchResults[idx];
+        if (item) {
+          if (!item.customDirs) {
+            item.customDirs = cloneDirs(state.dirs);
+          }
+          return item.customDirs;
+        }
+      }
+      return state.dirs;
+    }
+
+    function updateDirScopeUI() {
+      const badge = document.getElementById('dirScopeBadge');
+      const banner = document.getElementById('individualEditBanner');
+      const label = document.getElementById('individualEditLabel');
+
+      if (state.activeTab === 'batch' && state.batchDirMode === 'individual') {
+        badge.textContent = '個別編集モード';
+        badge.style.background = '#fef3c7';
+        badge.style.color = '#92400e';
+
+        if (state.batchResults.length > 0) {
+          const idx = state.selectedBatchIndex >= 0 ? state.selectedBatchIndex : 0;
+          const item = state.batchResults[idx];
+          banner.style.display = 'flex';
+          label.textContent = '編集中: #' + item.index + ' ' + item.rawUrl;
+        } else {
+          banner.style.display = 'none';
+        }
+      } else if (state.activeTab === 'batch' && state.batchDirMode === 'bulk') {
+        badge.textContent = '一括適用モード（全URL共通）';
+        badge.style.background = '#eff6ff';
+        badge.style.color = 'var(--primary)';
+        banner.style.display = 'none';
+      } else {
+        badge.textContent = '標準設定';
+        badge.style.background = '#eff6ff';
+        badge.style.color = 'var(--primary)';
+        banner.style.display = 'none';
+      }
+    }
+
+    function selectBatchItemForEdit(idx) {
+      if (idx < 0 || idx >= state.batchResults.length) return;
+      state.selectedBatchIndex = idx;
+
+      if (state.batchDirMode !== 'individual') {
+        state.batchDirMode = 'individual';
+        const radios = document.getElementsByName('batchDirMode');
+        for (let i = 0; i < radios.length; i++) {
+          radios[i].checked = (radios[i].value === 'individual');
+        }
+        document.getElementById('batchModeHint').textContent = '※ 一覧のカードをクリックすると各URLごとに個別の枠付き文章を設定できます。';
+        document.getElementById('batchClickGuide').style.display = 'block';
+      }
+
+      const item = state.batchResults[idx];
+      if (!item.customDirs) {
+        item.customDirs = cloneDirs(state.dirs);
+      }
+
+      updateDirScopeUI();
+      updateDirFormUI();
+      renderBatchGrid();
+      renderQR();
+      showToast('#' + item.index + ' の個別設定を選択しました');
+    }
+
+    function resetSelectedBatchItemDirs() {
+      if (state.selectedBatchIndex < 0 || state.selectedBatchIndex >= state.batchResults.length) return;
+      const item = state.batchResults[state.selectedBatchIndex];
+      item.customDirs = cloneDirs(state.dirs);
+      item.hasCustomOverride = false;
+      updateDirFormUI();
+      refreshBatchItemImage(state.selectedBatchIndex);
+      renderBatchGrid();
+      renderQR();
+      showToast('#' + item.index + ' を共通設定に戻しました');
+    }
+
+    function processBatch() {
+      const lines = document.getElementById('batchInput').value.split('\n');
+      const validUrls = lines.map(l => l.trim()).filter(l => l.length > 0);
+      if (validUrls.length === 0) {
+        showToast('変換するURLを1行以上入力してください');
+        return;
+      }
+
+      const prevMap = {};
+      state.batchResults.forEach(oldItem => {
+        if (oldItem.hasCustomOverride && oldItem.customDirs) {
+          prevMap[oldItem.rawUrl] = oldItem.customDirs;
+        }
+      });
+
+      state.batchResults = [];
+      const offscreenCanvas = document.createElement('canvas');
+      let errorCount = 0;
+
+      validUrls.forEach(rawUrl => {
+        const normalized = normalizeUrl(rawUrl);
+        const inheritedDirs = prevMap[rawUrl] ? cloneDirs(prevMap[rawUrl]) : null;
+        const dirsToUse = (state.batchDirMode === 'individual' && inheritedDirs) ? inheritedDirs : state.dirs;
+
+        const ok = drawQRToCanvas(offscreenCanvas, normalized, dirsToUse);
+        if (!ok) {
+          errorCount++;
+          return;
+        }
+        const dataUrl = offscreenCanvas.toDataURL('image/png');
+        state.batchResults.push({
+          index: state.batchResults.length + 1,
+          rawUrl: rawUrl,
+          url: normalized,
+          dataUrl: dataUrl,
+          customDirs: inheritedDirs,
+          hasCustomOverride: !!inheritedDirs
+        });
+
+        pushHistory(normalized, 'url');
+      });
+
+      if (state.batchResults.length > 0) {
+        state.selectedBatchIndex = 0;
+        if (state.batchDirMode === 'individual' && !state.batchResults[0].customDirs) {
+          state.batchResults[0].customDirs = cloneDirs(state.dirs);
+        }
+      } else {
+        state.selectedBatchIndex = -1;
+      }
+
+      document.getElementById('batchResultCount').textContent = '生成結果一覧（' + state.batchResults.length + '件）';
+      document.getElementById('batchContainer').style.display = 'block';
+      document.getElementById('batchClickGuide').style.display = (state.batchDirMode === 'individual' && state.batchResults.length > 0) ? 'block' : 'none';
+
+      updateDirScopeUI();
+      updateDirFormUI();
+      renderBatchGrid();
+      renderQR();
+
+      if (errorCount > 0) {
+        showToast(state.batchResults.length + '件生成完了（' + errorCount + '件は文字数超過でスキップ）');
+      } else {
+        showToast(state.batchResults.length + '件のQRコードを一括生成しました');
+      }
+    }
+
+    function refreshBatchItemImage(idx) {
+      const item = state.batchResults[idx];
+      if (!item) return;
+      const offscreenCanvas = document.createElement('canvas');
+      const dirsToUse = getEffectiveDirsForBatchItem(item);
+      if (drawQRToCanvas(offscreenCanvas, item.url, dirsToUse)) {
+        item.dataUrl = offscreenCanvas.toDataURL('image/png');
+      }
+    }
+
+    function refreshAllBatchCards() {
+      if (!state.batchResults || state.batchResults.length === 0) return;
+      for (let i = 0; i < state.batchResults.length; i++) {
+        refreshBatchItemImage(i);
+      }
+      renderBatchGrid();
+    }
+
+    function renderBatchGrid() {
+      const grid = document.getElementById('batchResultGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      state.batchResults.forEach((item, idx) => {
+        const card = document.createElement('div');
+        card.className = 'batch-card';
+        if (state.batchDirMode === 'individual' && idx === state.selectedBatchIndex) {
+          card.classList.add('selected-edit');
+        }
+
+        card.onclick = function(e) {
+          if (e.target.tagName === 'BUTTON') return;
+          selectBatchItemForEdit(idx);
+        };
+
+        const customBadge = (state.batchDirMode === 'individual' && item.hasCustomOverride)
+          ? '<span class="batch-custom-tag">✏️ 個別</span>'
+          : '';
+
+        card.innerHTML =
+          customBadge +
+          '<div>' +
+            '<img src="' + item.dataUrl + '" alt="QR ' + item.index + '">' +
+            '<div style="font-size:0.72rem; font-weight:700; color:#334155; margin-top:4px;">#' + item.index + '</div>' +
+            '<div style="font-size:0.7rem; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' + escapeXml(item.rawUrl) + '">' + escapeXml(item.rawUrl) + '</div>' +
+          '</div>';
+        
+        const dlBtn = document.createElement('button');
+        dlBtn.type = 'button';
+        dlBtn.className = 'btn-sub';
+        dlBtn.style.padding = '4px 6px';
+        dlBtn.style.fontSize = '0.72rem';
+        dlBtn.style.width = '100%';
+        dlBtn.style.marginTop = '6px';
+        dlBtn.textContent = '💾 保存';
+        dlBtn.onclick = function() {
+          const a = document.createElement('a');
+          a.download = 'qr-' + String(item.index).padStart(2, '0') + '.png';
+          a.href = item.dataUrl;
+          a.click();
+        };
+        card.appendChild(dlBtn);
+        grid.appendChild(card);
+      });
+    }
+
+    function downloadBatchZip() {
+      if (!state.batchResults || state.batchResults.length === 0) {
+        showToast('先に一括生成を実行してください');
+        return;
+      }
+      if (typeof JSZip === 'undefined') {
+        showToast('ZIPライブラリの読み込みに失敗しました。個別保存をご利用ください');
+        return;
+      }
+
+      refreshAllBatchCards();
+      const zip = new JSZip();
+      state.batchResults.forEach(item => {
+        const base64Data = item.dataUrl.split(',')[1];
+        const fileName = 'qr-' + String(item.index).padStart(2, '0') + '.png';
+        zip.file(fileName, base64Data, { base64: true });
+      });
+
+      zip.generateAsync({ type: 'blob' }).then(content => {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = 'qr-batch-' + Date.now() + '.zip';
+        link.click();
+        showToast('ZIPファイルをダウンロードしました');
+      });
+    }
+
+    function printBatchAll() {
+      if (!state.batchResults || state.batchResults.length === 0) return;
+      refreshAllBatchCards();
+
+      const printArea = document.getElementById('printArea');
+      printArea.innerHTML = '';
+      
+      const headerText = document.getElementById('printHeaderTitle').value.trim();
+      if (headerText) {
+        const headDiv = document.createElement('div');
+        headDiv.className = 'print-header';
+        headDiv.textContent = headerText;
+        printArea.appendChild(headDiv);
+      }
+
+      const gridDiv = document.createElement('div');
+      gridDiv.className = 'print-grid';
+      document.documentElement.style.setProperty('--print-cols', 3);
+
+      state.batchResults.forEach(item => {
+        const box = document.createElement('div');
+        box.className = 'print-item-box';
+
+        const img = document.createElement('img');
+        img.src = item.dataUrl;
+        img.style.width = '100%';
+        box.appendChild(img);
+
+        const lbl = document.createElement('div');
+        lbl.className = 'print-item-label';
+        lbl.textContent = '#' + item.index + ' ' + item.rawUrl;
+        box.appendChild(lbl);
+
+        gridDiv.appendChild(box);
+      });
+
+      printArea.appendChild(gridDiv);
+
+      setTimeout(function() {
+        window.print();
+        printArea.innerHTML = '';
+      }, 300);
+    }
+
+    function getTargetContent() {
+      if (state.activeTab === 'url') {
+        return state.url;
+      } else if (state.activeTab === 'batch') {
+        if (state.batchResults.length > 0) {
+          const idx = state.selectedBatchIndex >= 0 ? state.selectedBatchIndex : 0;
+          return state.batchResults[idx].url;
+        }
+        const firstLine = document.getElementById('batchInput').value.split('\n').map(l => l.trim()).filter(l => l.length > 0)[0];
+        return normalizeUrl(firstLine) || state.url;
+      } else if (state.activeTab === 'gform') {
+        return state.gformUrl || 'https://docs.google.com/forms';
+      } else if (state.activeTab === 'wifi') {
+        const ssid = escapeWifiString(state.wifi.ssid);
+        const pass = escapeWifiString(state.wifi.password);
+        const type = state.wifi.type === 'nopass' ? 'nopass' : state.wifi.type;
+        return 'WIFI:S:' + ssid + ';T:' + type + ';P:' + pass + ';;';
+      }
+      return state.url;
+    }
+
+    /* =========================================================
+       4. 四方向テキストレイアウト管理（URL挿入機能付き）
+       ========================================================= */
+    function switchDirection(dir) {
+      state.currentDir = dir;
+      ['top','bottom','left','right'].forEach(d => {
+        document.getElementById('dirBtn' + d.charAt(0).toUpperCase() + d.slice(1)).classList.toggle('active', d === dir);
+      });
+      updateDirFormUI();
+    }
+
+    function updateDirFormUI() {
+      const targetDirs = getActiveDirsObject();
+      const d = targetDirs[state.currentDir];
+      document.getElementById('dirEnable').checked = d.enable;
+      document.getElementById('dirText').value = d.text;
+      document.getElementById('dirFontSize').value = d.fontSize;
+      document.getElementById('dirTextColor').value = d.textColor;
+      document.getElementById('dirBgColor').value = d.bgColor;
+      
+      const isLR = (state.currentDir === 'left' || state.currentDir === 'right');
+      document.getElementById('verticalOption').style.display = isLR ? 'block' : 'none';
+      if (isLR) {
+        document.getElementById('dirOrient').value = d.orient || 'vertical';
+      }
+    }
+
+    function onDirTextInput() {
+      const textVal = document.getElementById('dirText').value;
+      const enableCheckbox = document.getElementById('dirEnable');
+      if (textVal.trim().length > 0 && !enableCheckbox.checked) {
+        enableCheckbox.checked = true;
+      } else if (textVal.trim().length === 0) {
+        enableCheckbox.checked = false;
+      }
+      updateCurrentDirSetting();
+    }
+
+    function clearCurrentDirText() {
+      document.getElementById('dirText').value = '';
+      document.getElementById('dirEnable').checked = false;
+      updateCurrentDirSetting();
+    }
+
+    function updateCurrentDirSetting() {
+      const targetDirs = getActiveDirsObject();
+      const d = targetDirs[state.currentDir];
+      d.enable = document.getElementById('dirEnable').checked;
+      d.text = document.getElementById('dirText').value;
+      d.fontSize = parseInt(document.getElementById('dirFontSize').value, 10) || 16;
+      d.textColor = document.getElementById('dirTextColor').value;
+      d.bgColor = document.getElementById('dirBgColor').value;
+      if (state.currentDir === 'left' || state.currentDir === 'right') {
+        d.orient = document.getElementById('dirOrient').value;
+      }
+
+      if (state.activeTab === 'batch') {
+        if (state.batchDirMode === 'individual' && state.selectedBatchIndex >= 0 && state.batchResults[state.selectedBatchIndex]) {
+          state.batchResults[state.selectedBatchIndex].hasCustomOverride = true;
+          refreshBatchItemImage(state.selectedBatchIndex);
+          renderBatchGrid();
+        } else if (state.batchDirMode === 'bulk') {
+          refreshAllBatchCards();
+        }
+      }
+
+      renderQR();
+    }
+
+    function insertPhrase(text) {
+      document.getElementById('dirText').value = text;
+      const targetDirs = getActiveDirsObject();
+      targetDirs[state.currentDir].enable = true;
+      document.getElementById('dirEnable').checked = true;
+      updateCurrentDirSetting();
+      const dirNames = { top: '上部', bottom: '下部', left: '左側', right: '右側' };
+      showToast('「' + dirNames[state.currentDir] + '」に挿入しました');
+    }
+
+    function insertCurrentUrlToDir() {
+      // 左右枠にURLを入れる場合は、長いURLが潰れないよう自動で「横書き（90度回転）」にする
+      if (state.currentDir === 'left' || state.currentDir === 'right') {
+        document.getElementById('dirOrient').value = 'horizontal';
+      }
+
+      if (state.activeTab === 'batch' && state.batchDirMode === 'bulk') {
+        insertPhrase('{URL}');
+        showToast('各QRコードのURLが自動で枠に入るよう設定しました');
+        return;
+      }
+
+      let urlToInsert = '';
+      if (state.activeTab === 'url') {
+        urlToInsert = state.url;
+      } else if (state.activeTab === 'gform') {
+        urlToInsert = state.gformUrl || document.getElementById('gformUrl').value.trim() || 'https://docs.google.com/forms';
+      } else if (state.activeTab === 'batch') {
+        if (state.batchResults.length > 0 && state.selectedBatchIndex >= 0) {
+          urlToInsert = state.batchResults[state.selectedBatchIndex].url;
+        } else {
+          urlToInsert = getTargetContent();
+        }
+      } else if (state.activeTab === 'wifi') {
+        urlToInsert = state.wifi.ssid ? ('SSID: ' + state.wifi.ssid) : 'Wi-Fi接続';
+      }
+      insertPhrase(urlToInsert);
+    }
+
+    function renderPhrasePalette() {
+      const container = document.getElementById('phrasePalette');
+      container.innerHTML = '';
+
+      const urlChip = document.createElement('span');
+      urlChip.className = 'chip chip-url';
+      urlChip.textContent = '🔗 入力URLを挿入';
+      urlChip.onclick = insertCurrentUrlToDir;
+      container.appendChild(urlChip);
+      
+      state.defaultPhrases.concat(state.customPhrases).forEach(p => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = p;
+        chip.onclick = function() { insertPhrase(p); };
+        container.appendChild(chip);
+      });
+
+      const addBtn = document.createElement('span');
+      addBtn.className = 'chip chip-add';
+      addBtn.textContent = '➕ 追加...';
+      addBtn.onclick = addNewCustomPhrase;
+      container.appendChild(addBtn);
+    }
+
+    function addNewCustomPhrase() {
+      const phrase = prompt('よく使うオリジナルの文章を入力してください:');
+      if (phrase && phrase.trim()) {
+        state.customPhrases.push(phrase.trim());
+        saveLocalStorage();
+        renderPhrasePalette();
+        showToast('定型文を保存しました');
+      }
+    }
+
+    /* =========================================================
+       5. カラーテーマ ＆ アイコン設定
+       ========================================================= */
+    function applyTheme(theme) {
+      if (theme === 'standard') {
+        setThemeColors('#2563eb', '#ffffff', '#000000', '#ffffff');
+      } else if (theme === 'gpurple') {
+        setThemeColors('#7c3aed', '#ffffff', '#000000', '#ffffff');
+      } else if (theme === 'school') {
+        setThemeColors('#059669', '#ffffff', '#065f46', '#ffffff');
+      } else if (theme === 'chic') {
+        setThemeColors('#1e293b', '#ffffff', '#000000', '#ffffff');
+      } else if (theme === 'warning') {
+        setThemeColors('#dc2626', '#ffffff', '#991b1b', '#ffffff');
+      } else if (theme === 'natural') {
+        setThemeColors('#d97706', '#ffffff', '#78350f', '#ffffff');
+      }
+      showToast('テーマを適用しました');
+    }
+
+    function setThemeColors(bannerBg, bannerText, qrDark, qrLight) {
+      ['top','bottom','left','right'].forEach(d => {
+        state.dirs[d].bgColor = bannerBg;
+        state.dirs[d].textColor = bannerText;
+      });
+      if (state.batchResults.length > 0) {
+        state.batchResults.forEach(item => {
+          if (item.customDirs) {
+            ['top','bottom','left','right'].forEach(d => {
+              item.customDirs[d].bgColor = bannerBg;
+              item.customDirs[d].textColor = bannerText;
+            });
+          }
+        });
+      }
+      state.qrDarkColor = qrDark;
+      state.qrLightColor = qrLight;
+      
+      document.getElementById('qrDarkColor').value = qrDark;
+      document.getElementById('qrLightColor').value = qrLight;
+
+      updateDirFormUI();
+      onThemeColorChanged();
+    }
+
+    function onThemeColorChanged() {
+      if (state.activeTab === 'batch' && state.batchResults.length > 0) {
+        refreshAllBatchCards();
+      }
+      renderQR();
+    }
+
+    function onCenterIconChange() {
+      const val = document.getElementById('centerIconType').value;
+      state.centerIcon = val;
+      document.getElementById('emojiSelectGroup').style.display = val === 'emoji' ? 'block' : 'none';
+      document.getElementById('imageUploadGroup').style.display = val === 'image' ? 'block' : 'none';
+      onThemeColorChanged();
+    }
+
+    function selectEmoji(emoji) {
+      state.selectedEmoji = emoji;
+      onThemeColorChanged();
+    }
+
+    function handleLogoUpload(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          state.logoDataUrl = evt.target.result;
+          const img = new Image();
+          img.onload = function() {
+            state.logoImage = img;
+            onThemeColorChanged();
+          };
+          img.src = state.logoDataUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    /* =========================================================
+       6. リアルタイム Canvas 描画エンジン（左右バナー完全クリーン実装）
+       ========================================================= */
+    function resolveBannerText(rawText, textContent) {
+      if (!rawText) return '';
+      return rawText.replace(/\{URL\}/gi, textContent);
+    }
+
+    function calcFittedHorizontalFontSize(ctx, text, baseFontSize, maxLength) {
+      let size = baseFontSize;
+      if (maxLength <= 10) return 8;
+      ctx.font = 'bold ' + size + 'px sans-serif';
+      const measured = ctx.measureText(text).width;
+      if (measured > maxLength && measured > 0) {
+        size = Math.max(8, Math.floor(size * (maxLength / measured)));
+      }
+      return size;
+    }
+
+    function calcFittedVerticalFontSize(text, baseFontSize, maxHeight) {
+      const chars = Array.from(text);
+      const len = chars.length;
+      if (len === 0 || maxHeight <= 10) return baseFontSize;
+      const lineStepRatio = 1.15;
+      const totalH = len * baseFontSize * lineStepRatio;
+      if (totalH > maxHeight) {
+        return Math.max(7, Math.floor(maxHeight / (len * lineStepRatio)));
+      }
+      return baseFontSize;
+    }
+
+    function renderQR() {
+      const canvas = document.getElementById('qrCanvas');
+      const textContent = getTargetContent();
+      const activeDirs = getActiveDirsObject();
+
+      const previewLabel = document.getElementById('previewTargetLabel');
+      if (state.activeTab === 'batch' && state.batchResults.length > 0) {
+        const idx = state.selectedBatchIndex >= 0 ? state.selectedBatchIndex : 0;
+        previewLabel.textContent = '#' + state.batchResults[idx].index + ' をプレビュー中';
+      } else {
+        previewLabel.textContent = '';
+      }
+
+      const ok = drawQRToCanvas(canvas, textContent, activeDirs);
+      if (!ok) {
+        showToast('入力テキストが長すぎるためQRコードを生成できません');
+        return;
+      }
+      checkContrastRatio(state.qrDarkColor, state.qrLightColor);
+    }
+
+    function drawSideBannerToCanvas(ctx, text, dirSetting, boxX, boxY, boxW, boxH, isRightSide) {
+      ctx.save();
+      // バナー枠内だけに描画を限定（はみ出し防止）
+      ctx.beginPath();
+      ctx.rect(boxX, boxY, boxW, boxH);
+      ctx.clip();
+
+      ctx.fillStyle = dirSetting.bgColor;
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+
+      ctx.fillStyle = dirSetting.textColor;
+      const availLen = Math.max(20, boxH - 16);
+      const orient = dirSetting.orient || 'vertical';
+
+      if (orient === 'vertical') {
+        const fittedVSize = calcFittedVerticalFontSize(text, dirSetting.fontSize, availLen);
+        ctx.font = 'bold ' + fittedVSize + 'px sans-serif';
+        drawVerticalText(ctx, text, boxX + (boxW / 2), boxY + (boxH / 2), fittedVSize);
+      } else {
+        const fittedHSize = calcFittedHorizontalFontSize(ctx, text, dirSetting.fontSize, availLen);
+        ctx.translate(boxX + (boxW / 2), boxY + (boxH / 2));
+        ctx.rotate(isRightSide ? Math.PI / 2 : -Math.PI / 2);
+        ctx.font = 'bold ' + fittedHSize + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 0, 0);
+      }
+      ctx.restore();
+    }
+
+    function drawQRToCanvas(canvas, textContent, dirsObj) {
+      const dirs = dirsObj || state.dirs;
+      const ctx = canvas.getContext('2d');
+      let qrData;
+      try {
+        qrData = QRCodeLib.createMatrix(textContent);
+      } catch(e) {
+        return false;
+      }
+
+      state.qrDarkColor = document.getElementById('qrDarkColor').value;
+      state.qrLightColor = document.getElementById('qrLightColor').value;
+      state.transparentBg = document.getElementById('transparentBg').checked;
+      state.dotStyle = document.getElementById('dotStyle').value;
+
+      const topText = (dirs.top.enable && dirs.top.text) ? resolveBannerText(dirs.top.text, textContent) : '';
+      const bottomText = (dirs.bottom.enable && dirs.bottom.text) ? resolveBannerText(dirs.bottom.text, textContent) : '';
+      const leftText = (dirs.left.enable && dirs.left.text) ? resolveBannerText(dirs.left.text, textContent) : '';
+      const rightText = (dirs.right.enable && dirs.right.text) ? resolveBannerText(dirs.right.text, textContent) : '';
+
+      const matrixSize = qrData.size;
+      const qrCellSize = Math.max(4, Math.min(10, Math.floor(320 / matrixSize)));
+      const qrCoreSize = matrixSize * qrCellSize;
+      const padding = 20;
+
+      const topHeight = topText ? (dirs.top.fontSize + 18) : 0;
+      const bottomHeight = bottomText ? (dirs.bottom.fontSize + 18) : 0;
+      const leftWidth = leftText ? (dirs.left.fontSize + 24) : 0;
+      const rightWidth = rightText ? (dirs.right.fontSize + 24) : 0;
+
+      const totalWidth = leftWidth + padding + qrCoreSize + padding + rightWidth;
+      const totalHeight = topHeight + padding + qrCoreSize + padding + bottomHeight;
+      const middleHeight = totalHeight - topHeight - bottomHeight;
+
+      const scale = 2; // 高画質レンダリング
+      canvas.width = totalWidth * scale;
+      canvas.height = totalHeight * scale;
+
+      ctx.save();
+      ctx.scale(scale, scale);
+
+      ctx.clearRect(0, 0, totalWidth, totalHeight);
+
+      if (!state.transparentBg) {
+        ctx.fillStyle = state.qrLightColor;
+        ctx.fillRect(0, 0, totalWidth, totalHeight);
+      }
+
+      const horizPadding = 16;
+
+      // 1. 上部バナー
+      if (topHeight > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, totalWidth, topHeight);
+        ctx.clip();
+
+        ctx.fillStyle = dirs.top.bgColor;
+        ctx.fillRect(0, 0, totalWidth, topHeight);
+        
+        const fittedTopSize = calcFittedHorizontalFontSize(ctx, topText, dirs.top.fontSize, totalWidth - horizPadding);
+        ctx.fillStyle = dirs.top.textColor;
+        ctx.font = 'bold ' + fittedTopSize + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(topText, totalWidth / 2, topHeight / 2);
+        ctx.restore();
+      }
+
+      // 2. 下部バナー
+      if (bottomHeight > 0) {
+        const bottomY = totalHeight - bottomHeight;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, bottomY, totalWidth, bottomHeight);
+        ctx.clip();
+
+        ctx.fillStyle = dirs.bottom.bgColor;
+        ctx.fillRect(0, bottomY, totalWidth, bottomHeight);
+
+        const fittedBottomSize = calcFittedHorizontalFontSize(ctx, bottomText, dirs.bottom.fontSize, totalWidth - horizPadding);
+        ctx.fillStyle = dirs.bottom.textColor;
+        ctx.font = 'bold ' + fittedBottomSize + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(bottomText, totalWidth / 2, bottomY + (bottomHeight / 2));
+        ctx.restore();
+      }
+
+      // 3. 左部バナー
+      if (leftWidth > 0) {
+        drawSideBannerToCanvas(ctx, leftText, dirs.left, 0, topHeight, leftWidth, middleHeight, false);
+      }
+
+      // 4. 右部バナー
+      if (rightWidth > 0) {
+        drawSideBannerToCanvas(ctx, rightText, dirs.right, totalWidth - rightWidth, topHeight, rightWidth, middleHeight, true);
+      }
+
+      // 5. QRコードマトリクス描画
+      const qrStartX = leftWidth + padding;
+      const qrStartY = topHeight + padding;
+
+      ctx.fillStyle = state.qrDarkColor;
+      for (let r = 0; r < matrixSize; r++) {
+        for (let c = 0; c < matrixSize; c++) {
+          if (qrData.modules[r][c]) {
+            const isFinder = (r < 7 && c < 7) || (r < 7 && c >= matrixSize - 7) || (r >= matrixSize - 7 && c < 7);
+            if (state.dotStyle === 'circle' && !isFinder) {
+              ctx.beginPath();
+              ctx.arc(qrStartX + c * qrCellSize + qrCellSize / 2, qrStartY + r * qrCellSize + qrCellSize / 2, qrCellSize / 2.1, 0, Math.PI * 2);
+              ctx.fill();
+            } else {
+              ctx.fillRect(qrStartX + c * qrCellSize, qrStartY + r * qrCellSize, qrCellSize, qrCellSize);
+            }
+          }
+        }
+      }
+
+      // 6. 中央アイコン / 絵文字 / ロゴ重ね合わせ
+      if (state.centerIcon === 'emoji' && state.selectedEmoji) {
+        const centerX = qrStartX + (qrCoreSize / 2);
+        const centerY = qrStartY + (qrCoreSize / 2);
+        const iconSize = qrCoreSize * 0.22;
+
+        ctx.fillStyle = state.qrLightColor;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, iconSize / 1.6, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = (iconSize * 0.8) + 'px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(state.selectedEmoji, centerX, centerY);
+      } else if (state.centerIcon === 'image' && state.logoImage) {
+        const centerX = qrStartX + (qrCoreSize / 2);
+        const centerY = qrStartY + (qrCoreSize / 2);
+        const iconSize = qrCoreSize * 0.24;
+
+        ctx.fillStyle = state.qrLightColor;
+        ctx.fillRect(centerX - (iconSize / 2) - 4, centerY - (iconSize / 2) - 4, iconSize + 8, iconSize + 8);
+
+        ctx.drawImage(state.logoImage, centerX - (iconSize / 2), centerY - (iconSize / 2), iconSize, iconSize);
+      }
+
+      ctx.restore();
+      return true;
+    }
+
+    function drawVerticalText(ctx, text, x, centerY, fontSize) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const chars = Array.from(text);
+      const lineStep = fontSize * 1.15;
+      const totalH = chars.length * lineStep;
+      const startY = centerY - (totalH / 2) + (lineStep / 2);
+
+      const rotateChars = {
+        'ー': true, '-': true, '―': true, '〜': true, '~': true,
+        '（': true, '(': true, '［': true, '[': true, '「': true, '『': true,
+        '）': true, ')': true, '］': true, ']': true, '」': true, '』': true
+      };
+
+      chars.forEach((ch, i) => {
+        const curY = startY + (i * lineStep);
+        if (rotateChars[ch]) {
+          ctx.save();
+          ctx.translate(x, curY);
+          ctx.rotate(Math.PI / 2);
+          ctx.fillText(ch, 0, 0);
+          ctx.restore();
+        } else if (ch === '、' || ch === '。') {
+          ctx.save();
+          ctx.translate(x + fontSize * 0.28, curY - fontSize * 0.28);
+          ctx.fillText(ch, 0, 0);
+          ctx.restore();
+        } else {
+          ctx.fillText(ch, x, curY);
+        }
+      });
+    }
+
+    function checkContrastRatio(c1, c2) {
+      function getLuminance(hex) {
+        const rgb = parseInt(hex.slice(1), 16);
+        const r = (rgb >> 16) & 0xff;
+        const g = (rgb >> 8) & 0xff;
+        const b = (rgb >> 0) & 0xff;
+        const a = [r, g, b].map(v => {
+          v /= 255;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        });
+        return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722;
+      }
+
+      const l1 = getLuminance(c1);
+      const l2 = getLuminance(c2);
+      const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+
+      const badge = document.getElementById('contrastBadge');
+      if (ratio >= 3.0) {
+        badge.className = 'contrast-badge contrast-ok';
+        badge.textContent = '✓ 読み取り視認性良好 (比率: ' + ratio.toFixed(1) + ':1)';
+      } else {
+        badge.className = 'contrast-badge contrast-warn';
+        badge.textContent = '⚠️ 色の濃淡が薄く、カメラで読めない可能性があります';
+      }
+    }
+
+    /* =========================================================
+       7. 保存・エクスポート ＆ 印刷機能（SVGの左右バナーも完全一致）
+       ========================================================= */
+    function downloadPNG() {
+      commitHistory();
+      const canvas = document.getElementById('qrCanvas');
+      const link = document.createElement('a');
+      link.download = 'framed-qr-' + Date.now() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('PNG画像をダウンロードしました');
+    }
+
+    function buildVerticalSvgChars(text, centerX, startY, boxHeight, fittedFontSize, fillColor) {
+      const chars = Array.from(text);
+      const lineStep = fittedFontSize * 1.15;
+      const totalH = chars.length * lineStep;
+      const vStartY = startY + (boxHeight / 2) - (totalH / 2) + (lineStep / 2);
+      const out = [];
+
+      const rotateChars = {
+        'ー': true, '-': true, '―': true, '〜': true, '~': true,
+        '（': true, '(': true, '［': true, '[': true, '「': true, '『': true,
+        '）': true, ')': true, '］': true, ']': true, '」': true, '』': true
+      };
+
+      chars.forEach((ch, i) => {
+        const cy = vStartY + i * lineStep;
+        if (rotateChars[ch]) {
+          out.push('<text x="' + centerX + '" y="' + cy + '" fill="' + fillColor + '" font-size="' + fittedFontSize + '" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central" transform="rotate(90 ' + centerX + ' ' + cy + ')">' + escapeXml(ch) + '</text>');
+        } else if (ch === '、' || ch === '。') {
+          out.push('<text x="' + (centerX + fittedFontSize * 0.28) + '" y="' + (cy - fittedFontSize * 0.28) + '" fill="' + fillColor + '" font-size="' + fittedFontSize + '" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">' + escapeXml(ch) + '</text>');
+        } else {
+          out.push('<text x="' + centerX + '" y="' + cy + '" fill="' + fillColor + '" font-size="' + fittedFontSize + '" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">' + escapeXml(ch) + '</text>');
+        }
+      });
+      return out.join('\n');
+    }
+
+    function downloadSVG() {
+      commitHistory();
+      const textContent = getTargetContent();
+      const dirs = getActiveDirsObject();
+      let qrData;
+      try {
+        qrData = QRCodeLib.createMatrix(textContent);
+      } catch(e) {
+        showToast('入力テキストが長すぎます');
+        return;
+      }
+
+      const topText = (dirs.top.enable && dirs.top.text) ? resolveBannerText(dirs.top.text, textContent) : '';
+      const bottomText = (dirs.bottom.enable && dirs.bottom.text) ? resolveBannerText(dirs.bottom.text, textContent) : '';
+      const leftText = (dirs.left.enable && dirs.left.text) ? resolveBannerText(dirs.left.text, textContent) : '';
+      const rightText = (dirs.right.enable && dirs.right.text) ? resolveBannerText(dirs.right.text, textContent) : '';
+
+      const matrixSize = qrData.size;
+      const qrCellSize = Math.max(4, Math.min(10, Math.floor(320 / matrixSize)));
+      const qrCoreSize = matrixSize * qrCellSize;
+      const padding = 20;
+
+      const topHeight = topText ? (dirs.top.fontSize + 18) : 0;
+      const bottomHeight = bottomText ? (dirs.bottom.fontSize + 18) : 0;
+      const leftWidth = leftText ? (dirs.left.fontSize + 24) : 0;
+      const rightWidth = rightText ? (dirs.right.fontSize + 24) : 0;
+
+      const totalWidth = leftWidth + padding + qrCoreSize + padding + rightWidth;
+      const totalHeight = topHeight + padding + qrCoreSize + padding + bottomHeight;
+      const middleHeight = totalHeight - topHeight - bottomHeight;
+
+      const measureCtx = document.createElement('canvas').getContext('2d');
+      const horizPadding = 16;
+
+      const svg = [];
+      svg.push('<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + totalWidth + '" height="' + totalHeight + '" viewBox="0 0 ' + totalWidth + ' ' + totalHeight + '">');
+
+      if (!state.transparentBg) {
+        svg.push('<rect width="' + totalWidth + '" height="' + totalHeight + '" fill="' + state.qrLightColor + '"/>');
+      }
+
+      if (topHeight > 0) {
+        const fittedTopSize = calcFittedHorizontalFontSize(measureCtx, topText, dirs.top.fontSize, totalWidth - horizPadding);
+        svg.push('<rect width="' + totalWidth + '" height="' + topHeight + '" fill="' + dirs.top.bgColor + '"/>');
+        svg.push('<text x="' + (totalWidth / 2) + '" y="' + (topHeight / 2) + '" fill="' + dirs.top.textColor + '" font-size="' + fittedTopSize + '" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">' + escapeXml(topText) + '</text>');
+      }
+
+      if (bottomHeight > 0) {
+        const bottomY = totalHeight - bottomHeight;
+        const fittedBottomSize = calcFittedHorizontalFontSize(measureCtx, bottomText, dirs.bottom.fontSize, totalWidth - horizPadding);
+        svg.push('<rect y="' + bottomY + '" width="' + totalWidth + '" height="' + bottomHeight + '" fill="' + dirs.bottom.bgColor + '"/>');
+        svg.push('<text x="' + (totalWidth / 2) + '" y="' + (bottomY + bottomHeight / 2) + '" fill="' + dirs.bottom.textColor + '" font-size="' + fittedBottomSize + '" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">' + escapeXml(bottomText) + '</text>');
+      }
+
+      if (leftWidth > 0) {
+        const availSideH = Math.max(20, middleHeight - 16);
+        svg.push('<rect y="' + topHeight + '" width="' + leftWidth + '" height="' + middleHeight + '" fill="' + dirs.left.bgColor + '"/>');
+        if ((dirs.left.orient || 'vertical') === 'horizontal') {
+          const fittedLeftHSize = calcFittedHorizontalFontSize(measureCtx, leftText, dirs.left.fontSize, availSideH);
+          svg.push('<text x="' + (leftWidth / 2) + '" y="' + (topHeight + middleHeight / 2) + '" fill="' + dirs.left.textColor + '" font-size="' + fittedLeftHSize + '" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 ' + (leftWidth/2) + ' ' + (topHeight+middleHeight/2) + ')">' + escapeXml(leftText) + '</text>');
+        } else {
+          const fittedLeftVSize = calcFittedVerticalFontSize(leftText, dirs.left.fontSize, availSideH);
+          svg.push(buildVerticalSvgChars(leftText, leftWidth / 2, topHeight, middleHeight, fittedLeftVSize, dirs.left.textColor));
+        }
+      }
+
+      if (rightWidth > 0) {
+        const rightX = totalWidth - rightWidth;
+        const availSideH = Math.max(20, middleHeight - 16);
+        svg.push('<rect x="' + rightX + '" y="' + topHeight + '" width="' + rightWidth + '" height="' + middleHeight + '" fill="' + dirs.right.bgColor + '"/>');
+        if ((dirs.right.orient || 'vertical') === 'horizontal') {
+          const fittedRightHSize = calcFittedHorizontalFontSize(measureCtx, rightText, dirs.right.fontSize, availSideH);
+          svg.push('<text x="' + (rightX + rightWidth / 2) + '" y="' + (topHeight + middleHeight / 2) + '" fill="' + dirs.right.textColor + '" font-size="' + fittedRightHSize + '" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central" transform="rotate(90 ' + (rightX + rightWidth/2) + ' ' + (topHeight+middleHeight/2) + ')">' + escapeXml(rightText) + '</text>');
+        } else {
+          const fittedRightVSize = calcFittedVerticalFontSize(rightText, dirs.right.fontSize, availSideH);
+          svg.push(buildVerticalSvgChars(rightText, rightX + rightWidth / 2, topHeight, middleHeight, fittedRightVSize, dirs.right.textColor));
+        }
+      }
+
+      const qrStartX = leftWidth + padding;
+      const qrStartY = topHeight + padding;
+      state.dotStyle = document.getElementById('dotStyle').value;
+
+      for (let r = 0; r < matrixSize; r++) {
+        for (let c = 0; c < matrixSize; c++) {
+          if (qrData.modules[r][c]) {
+            const isFinder = (r < 7 && c < 7) || (r < 7 && c >= matrixSize - 7) || (r >= matrixSize - 7 && c < 7);
+            if (state.dotStyle === 'circle' && !isFinder) {
+              const cx = qrStartX + c * qrCellSize + qrCellSize / 2;
+              const cy = qrStartY + r * qrCellSize + qrCellSize / 2;
+              svg.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (qrCellSize / 2.1) + '" fill="' + state.qrDarkColor + '"/>');
+            } else {
+              svg.push('<rect x="' + (qrStartX + c * qrCellSize) + '" y="' + (qrStartY + r * qrCellSize) + '" width="' + qrCellSize + '" height="' + qrCellSize + '" fill="' + state.qrDarkColor + '"/>');
+            }
+          }
+        }
+      }
+
+      if (state.centerIcon === 'emoji' && state.selectedEmoji) {
+        const centerX = qrStartX + (qrCoreSize / 2);
+        const centerY = qrStartY + (qrCoreSize / 2);
+        const iconSize = qrCoreSize * 0.22;
+        svg.push('<circle cx="' + centerX + '" cy="' + centerY + '" r="' + (iconSize / 1.6) + '" fill="' + state.qrLightColor + '"/>');
+        svg.push('<text x="' + centerX + '" y="' + centerY + '" font-size="' + (iconSize * 0.8) + '" text-anchor="middle" dominant-baseline="central">' + escapeXml(state.selectedEmoji) + '</text>');
+      } else if (state.centerIcon === 'image' && state.logoDataUrl) {
+        const centerX = qrStartX + (qrCoreSize / 2);
+        const centerY = qrStartY + (qrCoreSize / 2);
+        const iconSize = qrCoreSize * 0.24;
+        svg.push('<rect x="' + (centerX - iconSize / 2 - 4) + '" y="' + (centerY - iconSize / 2 - 4) + '" width="' + (iconSize + 8) + '" height="' + (iconSize + 8) + '" fill="' + state.qrLightColor + '"/>');
+        svg.push('<image x="' + (centerX - iconSize / 2) + '" y="' + (centerY - iconSize / 2) + '" width="' + iconSize + '" height="' + iconSize + '" href="' + escapeXml(state.logoDataUrl) + '" xlink:href="' + escapeXml(state.logoDataUrl) + '"/>');
+      }
+
+      svg.push('</svg>');
+
+      const blob = new Blob([svg.join('\n')], { type: 'image/svg+xml;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'framed-qr-' + Date.now() + '.svg';
+      link.click();
+      showToast('SVG形式で保存しました');
+    }
+
+    function escapeXml(str) {
+      if (!str) return '';
+      return str.replace(/[<>&'"]/g, function (c) {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+        }
+      });
+    }
+
+    function copyToClipboard() {
+      commitHistory();
+      const canvas = document.getElementById('qrCanvas');
+      canvas.toBlob(function(blob) {
+        if (!blob) {
+          showToast('画像の生成に失敗しました');
+          return;
+        }
+        if (!navigator.clipboard || !window.ClipboardItem) {
+          showToast('お使いのブラウザは画像コピーに対応していません');
+          return;
+        }
+        try {
+          const item = new ClipboardItem({ 'image/png': blob });
+          navigator.clipboard.write([item]).then(function() {
+            showToast('画像をクリップボードにコピーしました！');
+          }).catch(function() {
+            showToast('コピーに失敗しました（ブラウザの権限を確認してください）');
+          });
+        } catch (e) {
+          showToast('お使いのブラウザは画像直接コピー未対応です');
+        }
+      });
+    }
+
+    function printLayout(count) {
+      commitHistory();
+      const canvas = document.getElementById('qrCanvas');
+      const imgData = canvas.toDataURL('image/png');
+      const printArea = document.getElementById('printArea');
+      printArea.innerHTML = '';
+      
+      const headerText = document.getElementById('printHeaderTitle').value.trim();
+      if (headerText) {
+        const headDiv = document.createElement('div');
+        headDiv.className = 'print-header';
+        headDiv.textContent = headerText;
+        printArea.appendChild(headDiv);
+      }
+
+      const gridDiv = document.createElement('div');
+      gridDiv.className = 'print-grid';
+      const cols = count === 1 ? 1 : (count <= 4 ? 2 : 3);
+      document.documentElement.style.setProperty('--print-cols', cols);
+
+      for (let i = 0; i < count; i++) {
+        const img = document.createElement('img');
+        img.src = imgData;
+        img.style.width = '100%';
+        img.style.height = 'auto';
+        gridDiv.appendChild(img);
+      }
+
+      printArea.appendChild(gridDiv);
+
+      setTimeout(function() {
+        window.print();
+        printArea.innerHTML = '';
+      }, 300);
+    }
+
+    /* =========================================================
+       8. 作成履歴（縦スクロールモーダル） & LocalStorage
+       ========================================================= */
+    function commitHistory() {
+      const content = getTargetContent();
+      pushHistory(content, state.activeTab);
+    }
+
+    function pushHistory(content, tabType) {
+      if (!content || content === 'https://example.com') return;
+      const targetTab = tabType || state.activeTab;
+      if (targetTab === 'batch') return;
+
+      state.history = state.history.filter(h => h.content !== content);
+      state.history.unshift({
+        content: content,
+        tab: targetTab,
+        date: new Date().toLocaleString([], { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      });
+      if (state.history.length > 30) state.history.pop();
+      renderHistory();
+      saveLocalStorage();
+    }
+
+    function clearHistory() {
+      if (state.history.length === 0) return;
+      if (!confirm('作成履歴をすべて削除しますか？')) return;
+      state.history = [];
+      renderHistory();
+      saveLocalStorage();
+      showToast('作成履歴を削除しました');
+    }
+
+    function renderHistory() {
+      const badge = document.getElementById('historyCountBadge');
+      if (badge) badge.textContent = state.history.length;
+
+      const container = document.getElementById('historyList');
+      if (state.history.length === 0) {
+        container.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; padding: 20px;">履歴はありません</p>';
+        return;
+      }
+      container.innerHTML = '';
+      state.history.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'history-v-item';
+        
+        let typeTag = '🌐 Web URL';
+        let displayLabel = item.content;
+        if (item.tab === 'wifi') {
+          const ssidMatch = item.content.match(/S:((?:\\;|[^;])*);/);
+          typeTag = '📶 Wi-Fi';
+          displayLabel = (ssidMatch && ssidMatch[1] ? ssidMatch[1].replace(/\\([\\;:,"])/g, '$1') : 'Wi-Fi設定');
+        } else if (item.tab === 'gform') {
+          typeTag = '📝 Googleフォーム';
+        }
+
+        el.innerHTML =
+          '<div class="history-v-info">' +
+            '<div class="history-v-title">' + escapeXml(displayLabel) + '</div>' +
+            '<div class="history-v-sub">' + typeTag + '</div>' +
+          '</div>' +
+          '<div class="history-v-date">' + escapeXml(item.date) + '</div>';
+        
+        el.onclick = function() {
+          const targetTab = item.tab || 'url';
+          switchMainTab(targetTab);
+
+          if (targetTab === 'url') {
+            document.getElementById('targetUrl').value = item.content;
+            state.url = item.content;
+          } else if (targetTab === 'gform') {
+            document.getElementById('gformUrl').value = item.content;
+            state.gformUrl = item.content;
+          } else if (targetTab === 'wifi') {
+            const sMatch = item.content.match(/S:((?:\\;|[^;])*);/);
+            const pMatch = item.content.match(/P:((?:\\;|[^;])*);/);
+            const tMatch = item.content.match(/T:((?:\\;|[^;])*);/);
+            if (sMatch) {
+              document.getElementById('wifiSsid').value = sMatch[1].replace(/\\([\\;:,"])/g, '$1');
+              state.wifi.ssid = document.getElementById('wifiSsid').value;
+            }
+            if (pMatch) {
+              document.getElementById('wifiPassword').value = pMatch[1].replace(/\\([\\;:,"])/g, '$1');
+              state.wifi.password = document.getElementById('wifiPassword').value;
+            }
+            if (tMatch) {
+              document.getElementById('wifiType').value = tMatch[1] || 'WPA';
+              state.wifi.type = document.getElementById('wifiType').value;
+            }
+          }
+          renderQR();
+          toggleHistoryModal(false);
+          showToast('履歴から復元しました');
+        };
+        container.appendChild(el);
+      });
+    }
+
+    function saveLocalStorage() {
+      try {
+        localStorage.setItem('qr_app_phrases', JSON.stringify(state.customPhrases));
+        localStorage.setItem('qr_app_history', JSON.stringify(state.history));
+      } catch(e) {}
+    }
+
+    function loadLocalStorage() {
+      try {
+        const p = localStorage.getItem('qr_app_phrases');
+        if (p) state.customPhrases = JSON.parse(p);
+        const h = localStorage.getItem('qr_app_history');
+        if (h) state.history = JSON.parse(h);
+        renderHistory();
+      } catch(e) {}
+    }
+
+    /* =========================================================
+       9. ユーティリティ
+       ========================================================= */
+    function toggleHistoryModal(open) {
+      document.getElementById('historyModal').classList.toggle('open', open);
+    }
+
+    function toggleHelpModal(open) {
+      document.getElementById('helpModal').classList.toggle('open', open);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(function() {
+        toast.classList.remove('show');
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
